@@ -56,10 +56,11 @@ interface CheckoutTotals {
   promoApplied: boolean;
 }
 
-export function calculateCheckoutTotals(cart: CartItem[], promoCode: string): CheckoutTotals {
+export function calculateCheckoutTotals(cart: CartItem[], promoCode: string, now: Date = new Date()): CheckoutTotals {
   const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0);
   const normalizedCode = promoCode.trim().toUpperCase();
-  const promoApplied = normalizedCode === "BREW3PM";
+  const isAfter3PM = now.getHours() >= 15;
+  const promoApplied = normalizedCode === "BREW3PM" && isAfter3PM;
   const eligibleSubtotal = promoApplied
     ? cart.reduce((sum, item) => {
         const eligible = ["Coffee", "Cold Brew"].includes(item.product.type);
