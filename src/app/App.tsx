@@ -48,6 +48,35 @@ interface PaymentInfo {
   cardName: string; cardNumber: string; expiry: string; cvv: string;
 }
 
+interface CheckoutTotals {
+  subtotal: number;
+  eligibleSubtotal: number;
+  discount: number;
+  total: number;
+  promoApplied: boolean;
+}
+
+export function calculateCheckoutTotals(cart: CartItem[], promoCode: string): CheckoutTotals {
+  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+  const normalizedCode = promoCode.trim().toUpperCase();
+  const promoApplied = normalizedCode === "BREW3PM";
+  const eligibleSubtotal = promoApplied
+    ? cart.reduce((sum, item) => {
+        const eligible = ["Coffee", "Cold Brew"].includes(item.product.type);
+        return sum + (eligible ? item.product.price * item.qty : 0);
+      }, 0)
+    : 0;
+  const discount = promoApplied ? eligibleSubtotal * 0.15 : 0;
+
+  return {
+    subtotal,
+    eligibleSubtotal,
+    discount: Number(discount.toFixed(2)),
+    total: Number((subtotal - discount).toFixed(2)),
+    promoApplied,
+  };
+}
+
 // ─── Data ──────────────────────────────────────────────────────────────────
 
 const PRODUCTS: Product[] = [
@@ -1148,9 +1177,13 @@ function CheckoutPage({
   const [payment, setPayment] = useState<PaymentInfo>({
     cardName: "", cardNumber: "", expiry: "", cvv: ""
   });
+  const [promoCode, setPromoCode] = useState("");
   const [orderNum] = useState(() => `SS-${Math.floor(Math.random() * 90000) + 10000}`);
 
-  const total = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+  const totals = calculateCheckoutTotals(cart, promoCode);
+  const total = totals.total;
+  const discount = totals.discount;
+  const promoApplied = totals.promoApplied;
 
   function updateQty(productId: number, qty: number) {
     if (qty <= 0) {
@@ -1238,8 +1271,13 @@ function CheckoutPage({
                 </div>
                 <div className="border-t border-border pt-3 mb-2">
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Subtotal</span><span>{fmt(total)}</span>
+                    <span>Subtotal</span><span>{fmt(totals.subtotal)}</span>
                   </div>
+                  {promoApplied && (
+                    <div className="flex justify-between text-sm text-secondary mt-1">
+                      <span>Promo discount</span><span>-{fmt(discount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-sm text-muted-foreground mt-1">
                     <span>Shipping</span><span className="text-secondary font-medium">Free</span>
                   </div>
@@ -1249,8 +1287,23 @@ function CheckoutPage({
                     <span>Total</span><span className="text-primary">{fmt(total)}</span>
                   </div>
                 </div>
-                <div className="p-3 rounded-xl bg-accent/15 border border-accent/25 mb-5 text-xs text-muted-foreground">
-                  <strong className="text-foreground">After 3pm?</strong> Use <span className="font-mono font-semibold">BREW3PM</span> for 15% off select blends.
+                <div className="p-3 rounded-xl bg-accent/15 border border-accent/25 mb-4 text-xs text-muted-foreground">
+                  <strong className="text-foreground">After 3pm?</strong> Use <span className="font-mono font-semibold">BREW3PM</span> for 15% off select coffee and cold brew blends.
+                </div>
+                <div className="mb-5">
+                  <label className="block text-xs font-medium mb-1.5 text-foreground">Promo code</label>
+                  <input
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    placeholder="BREW3PM"
+                    className="w-full px-3 py-2.5 rounded-xl bg-background border border-border focus:border-primary focus:outline-none text-sm"
+                  />
+                  {promoCode.trim() && !promoApplied && (
+                    <p className="mt-2 text-xs text-muted-foreground">That code isn’t active for this order.</p>
+                  )}
+                  {promoApplied && (
+                    <p className="mt-2 text-xs text-secondary">15% off selected coffee and cold brew blends applied.</p>
+                  )}
                 </div>
                 <button
                   onClick={() => setStep(2)}
@@ -1407,7 +1460,10 @@ function CheckoutPage({
                 </div>
               ))}
               <div className="space-y-1.5 mt-3 pt-3 border-t border-border text-sm">
-                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{fmt(total)}</span></div>
+                <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span>{fmt(totals.subtotal)}</span></div>
+                {promoApplied && (
+                  <div className="flex justify-between text-secondary"><span>Promo discount</span><span>-{fmt(discount)}</span></div>
+                )}
                 <div className="flex justify-between text-muted-foreground"><span>Shipping</span><span className="text-secondary font-medium">Free</span></div>
                 <div className="flex justify-between font-semibold pt-1"><span>Total</span><span className="text-primary">{fmt(total)}</span></div>
               </div>
@@ -1452,6 +1508,9 @@ function CheckoutPage({
               <span>Total paid</span>
               <span className="text-primary">{fmt(total)}</span>
             </div>
+            {promoApplied && (
+              <p className="mt-2 text-xs text-secondary">BREW3PM discount applied to your eligible coffee and cold brew items.</p>
+            )}
           </div>
 
           <div className="bg-[#728F6E]/10 border border-[#728F6E]/25 rounded-2xl p-6 mb-6">
